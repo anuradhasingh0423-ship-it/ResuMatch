@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>ResuMatch | Dashboard</title>
+
+<style>
+body{
+  margin:0;
+  display:flex;
+  height:100vh;
+  background:#020617;
+  color:white;
+  font-family:Arial, sans-serif;
+}
+
+/* ---------- Sidebar ---------- */
+.sidebar{
+  width:260px;
+  background:#020617;
+  border-right:1px solid #1e293b;
+  padding:20px;
+  display:flex;
+  flex-direction:column;
+}
+
+.sidebar h2{
+  color:#38bdf8;
+  margin-bottom:10px;
+}
+
+.sidebar button{
+  width:100%;
+  padding:10px;
+  margin-top:10px;
+  border:none;
+  border-radius:8px;
+  background:#1e293b;
+  color:white;
+  cursor:pointer;
+}
+
+.sidebar button:hover{ background:#334155; }
+
+/* ---------- Collapsible Header ---------- */
+.chat-header{
+  margin-top:20px;
+  font-size:14px;
+  color:#94a3b8;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  cursor:pointer;
+}
+
+.chat-arrow{
+  transition:transform 0.3s ease;
+}
+
+/* ---------- Chat List ---------- */
+.chat-list{
+  margin-top:10px;
+  flex:1;
+  overflow-y:auto;
+  max-height:0;
+  overflow:hidden;
+  transition:max-height 0.4s ease;
+}
+
+/* ---------- Chat Item ---------- */
+.chat-item{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:10px;
+  margin-bottom:8px;
+  border-radius:8px;
+  background:#020617;
+  border:1px solid #1e293b;
+  cursor:pointer;
+  font-size:13px;
+}
+
+.chat-item:hover{ background:#1e293b; }
+
+.chat-item.active{
+  background:#38bdf8;
+  color:#020617;
+  font-weight:bold;
+}
+
+.delete-btn{
+  background:none;
+  border:none;
+  color:#f87171;
+  font-size:14px;
+  cursor:pointer;
+}
+
+/* ---------- Main ---------- */
+.main{
+  flex:1;
+  display:flex;
+  justify-content:center;
+  align-items:flex-start;
+  padding-top:40px;
+}
+
+.card{
+  width:560px;
+  padding:30px;
+  border-radius:14px;
+  background:#020617;
+  box-shadow:0 0 30px rgba(56,189,248,0.25);
+}
+
+.upload-box{
+  border:2px dashed #38bdf8;
+  padding:25px;
+  text-align:center;
+  border-radius:12px;
+}
+
+textarea,input{
+  width:100%;
+  margin-top:10px;
+  padding:10px;
+  border-radius:6px;
+  border:none;
+}
+
+button.main-btn{
+  margin-top:15px;
+  padding:12px;
+  width:100%;
+  background:#38bdf8;
+  border:none;
+  border-radius:8px;
+  font-weight:bold;
+  cursor:pointer;
+}
+
+#result{ margin-top:20px; }
+
+.box{
+  margin-top:14px;
+  padding:14px;
+  border:1px solid #1e293b;
+  border-radius:10px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- ---------- Sidebar ---------- -->
+<div class="sidebar">
+  <h2>ResuMatch</h2>
+  <button onclick="newAnalysis()">+ New Analysis</button>
+
+  <div class="chat-header" onclick="toggleChats()">
+    <span>Your chats</span>
+    <span id="chatArrow" class="chat-arrow">▶</span>
+  </div>
+
+  <div class="chat-list" id="chatList"></div>
+
+  <button onclick="location.href='/logout'">Logout</button>
+</div>
+
+<!-- ---------- Main ---------- -->
+<div class="main">
+  <div class="card">
+
+    <div id="uploadSection">
+      <h2>Upload Your Resume</h2>
+      <div class="upload-box">
+        <input type="file" id="pdf" accept=".pdf">
+        <textarea id="resume" rows="5" placeholder="Or paste resume text..."></textarea>
+
+        <!-- ✅ OPTIONAL JD INPUT (NEW, SAFE) -->
+        <textarea id="jobDesc" rows="4"
+          placeholder="Optional: Paste Job Description to compare"></textarea>
+
+        <button class="main-btn" onclick="predict()">Analyze</button>
+      </div>
+    </div>
+
+    <div id="result"></div>
+  </div>
+</div>
+
+<script>
+let activeChatId = null;
+let chatsOpen = false;
+
+/* ---------- Toggle Chats ---------- */
+function toggleChats(){
+  const list = document.getElementById("chatList");
+  const arrow = document.getElementById("chatArrow");
+  chatsOpen = !chatsOpen;
+
+  if(chatsOpen){
+    list.style.maxHeight = list.scrollHeight + "px";
+    arrow.style.transform = "rotate(90deg)";
+  }else{
+    list.style.maxHeight = "0";
+    arrow.style.transform = "rotate(0deg)";
+  }
+}
+
+/* ---------- Render Analysis ---------- */
+function renderAnalysis(data){
+  const sc = data.scorecard;
+
+  document.getElementById("result").innerHTML = `
+    <div class="box">
+      <h3>${data.detected_role} Analysis</h3>
+      <p><b>Decision:</b> ${data.decision}</p>
+      ${data.created_at ? `<p><b>Date:</b> ${data.created_at}</p>` : ""}
+    </div>
+
+    <div class="box">
+      <h3>Scorecard</h3>
+      <p>Skill Match: ${sc.skill_match_percent}%</p>
+      <p>Keyword Score: ${sc.keyword_match_score}</p>
+      <p>Experience: ${sc.experience_score}/10</p>
+      <p>Resume Length: ${sc.resume_length}</p>
+      <p>Similarity: ${sc.similarity_score}</p>
+      <p><b>Overall: ${sc.overall_score}/100</b></p>
+    </div>
+
+    <div class="box">
+      <h3>Skill Confidence</h3>
+      ${
+        Object.entries(data.skill_confidence || {})
+        .map(([skill,val]) => `
+          <div style="margin-bottom:10px">
+            <small>${skill}</small>
+            <div style="background:#1e293b;border-radius:8px">
+              <div style="
+                width:${val}%;
+                background:#38bdf8;
+                color:#020617;
+                padding:4px;
+                font-size:12px;
+                border-radius:8px">
+                ${val}%
+              </div>
+            </div>
+          </div>
+        `).join("")
+      }
+    </div>
+
+    ${
+      data.jd_analysis ? `
+      <div class="box">
+        <h3>Resume vs Job Description</h3>
+        <p><b>JD Skill Match:</b> ${data.jd_analysis.jd_skill_match_percent}%</p>
+        <p><b>JD Keyword Score:</b> ${data.jd_analysis.jd_keyword_score}</p>
+        <p><b>JD Similarity:</b> ${data.jd_analysis.jd_similarity}</p>
+
+        <p><b>Missing JD Skills:</b></p>
+        <ul>
+          ${
+            data.jd_analysis.jd_missing_skills.length
+            ? data.jd_analysis.jd_missing_skills.map(s=>`<li>${s}</li>`).join("")
+            : "<li>No missing JD skills 🎉</li>"
+          }
+        </ul>
+      </div>
+      ` : ""
+    }
+
+    <div class="box">
+      <h3>Why Shortlisted</h3>
+      <ul>
+        ${
+          data.why_shortlisted && data.why_shortlisted.length
+          ? data.why_shortlisted.map(r=>`<li>${r}</li>`).join("")
+          : "<li>Resume meets key job requirements</li>"
+        }
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Missing Skills</h3>
+      <ul>
+        ${
+          data.missing_skills && data.missing_skills.length
+          ? data.missing_skills.map(s=>`<li>${s}</li>`).join("")
+          : "<li>No major missing skills 🎉</li>"
+        }
+      </ul>
+    </div>
+
+    <div class="box">
+      <h3>Suggestions</h3>
+      <ul>
+        ${data.suggestions.map(s=>`<li>${s}</li>`).join("")}
+      </ul>
+    </div>
+  `;
+}
+
+/* ---------- Predict ---------- */
+async function predict(){
+  const formData = new FormData();
+  const pdf = document.getElementById("pdf").files[0];
+  const text = document.getElementById("resume").value;
+  const jd = document.getElementById("jobDesc").value;
+
+  if(!pdf && !text.trim()){
+    alert("Upload PDF or paste resume text");
+    return;
+  }
+
+  if(pdf) formData.append("resume_pdf", pdf);
+  else formData.append("resume_text", text);
+
+  if(jd && jd.trim()){
+    formData.append("job_description", jd);
+  }
+
+  const res = await fetch("/predict",{method:"POST", body:formData});
+  const data = await res.json();
+
+  document.getElementById("uploadSection").style.display="none";
+  renderAnalysis(data);
+  loadChats();
+}
+
+/* ---------- Load Chats ---------- */
+async function loadChats(){
+  const res = await fetch("/history");
+  const chats = await res.json();
+  const list = document.getElementById("chatList");
+  list.innerHTML="";
+
+  chats.forEach(c=>{
+    const div=document.createElement("div");
+    div.className="chat-item"+(c.id===activeChatId?" active":"");
+    div.innerHTML=`
+      <div>
+        <b>${c.detected_role}</b><br>
+        Score: ${c.score}
+      </div>
+      <button class="delete-btn" onclick="deleteChat(event,${c.id})">🗑️</button>
+    `;
+    div.onclick=()=>loadChat(c.id);
+    list.appendChild(div);
+  });
+
+  if(chatsOpen) list.style.maxHeight = list.scrollHeight + "px";
+}
+
+/* ---------- Load Chat ---------- */
+async function loadChat(id){
+  activeChatId=id;
+  document.getElementById("uploadSection").style.display="none";
+  const res = await fetch(`/history/${id}`);
+  renderAnalysis(await res.json());
+  loadChats();
+}
+
+/* ---------- Delete Chat ---------- */
+async function deleteChat(e,id){
+  e.stopPropagation();
+  if(!confirm("Delete this chat?")) return;
+  await fetch(`/history/${id}`,{method:"DELETE"});
+  if(activeChatId===id) newAnalysis();
+  loadChats();
+}
+
+/* ---------- New Analysis ---------- */
+function newAnalysis(){
+  activeChatId=null;
+  document.getElementById("uploadSection").style.display="block";
+  document.getElementById("result").innerHTML="";
+  document.getElementById("pdf").value="";
+  document.getElementById("resume").value="";
+  document.getElementById("jobDesc").value="";
+  loadChats();
+}
+
+loadChats();
+</script>
+
+</body>
+</html>
