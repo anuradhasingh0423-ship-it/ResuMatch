@@ -7,7 +7,13 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 # ---------- NLP ----------
-nlp = spacy.load("en_core_web_sm")
+try:
+    nlp = spacy.load("en_core_web_sm")
+except:
+    import spacy.cli
+    spacy.cli.download("en_core_web_sm")
+    nlp = spacy.load("en_core_web_sm")
+
 
 # ---------- App ----------
 app = Flask(__name__)
@@ -80,6 +86,14 @@ PYTHON_DEV_SKILL_MAP = {
     "backend": ["server", "api"]
 }
 
+AUTOMATION_SKILL_MAP = {
+    "automation workflows": ["n8n", "zapier", "make.com"],
+    "messaging api": ["whatsapp api", "twilio"],
+    "social automation": ["instagram api", "facebook api"],
+    "ai tools": ["claude", "openai", "chatgpt"],
+    "crm": ["crm", "client management"],
+    "marketing": ["digital marketing", "lead generation"]
+}
 ROLE_SKILL_MAP = {
     "Data Science": SKILL_MAP,
     "Web Designing": WEB_SKILL_MAP,
@@ -87,6 +101,8 @@ ROLE_SKILL_MAP = {
     "DevOps Engineer": DEVOPS_SKILL_MAP,
     "Python Developer": PYTHON_DEV_SKILL_MAP
 }
+
+ROLE_SKILL_MAP["AI Automation Engineer"] = AUTOMATION_SKILL_MAP
 
 # ---------- Job Descriptions ----------
 job_descriptions = {
@@ -98,8 +114,13 @@ job_descriptions = {
     "HR": "Recruitment Talent Acquisition Payroll Employee Engagement Communication Performance Management",
     "DevOps Engineer": "Docker Kubernetes AWS CI CD Linux Automation Cloud Infrastructure Monitoring",
     "Web Designing": "HTML CSS JavaScript UI UX Responsive Design Bootstrap Figma",
-    "Python Developer": "Python OOP Flask Django APIs Databases Backend Development"
+    "Python Developer": "Python OOP Flask Django APIs Databases Backend Development",
+    "AI Automation Engineer": """n8n automation workflows WhatsApp Business API Instagram Facebook automation
+                              CRM client management AI tools Claude OpenAI chatbots digital marketing"""
+
 }
+
+
 
 
 def role_skill_confidence(resume, role):
@@ -126,9 +147,9 @@ def clean_text(text):
         if token.is_alpha and not token.is_stop
     )
 
-def normalize_skills(text):
+def normalize_skills(text, role=None):
     text = clean_text(text)
-
+    skill_map = ROLE_SKILL_MAP.get(role, SKILL_MAP)
     for parent, children in SKILL_MAP.items():
         found = False
 
@@ -268,21 +289,15 @@ def detect_missing_skills(resume, role, is_pdf=False):
     jd_skills = normalize_skills(job_descriptions[role])
 
     missing = []
-    for skill in SKILL_MAP:
-
-        # ✅ TRUST CONFIDENCE FIRST
+    for skill in ROLE_SKILL_MAP[role]:
         if confidence.get(skill, 0) >= 50:
             continue
-
-        # 🚨 PDF SAFETY NET (CRITICAL)
         if is_pdf:
-            continue   # NEVER mark skills missing from PDFs
-
-        # text-based fallback (paste mode only)
+            continue
         if skill not in jd_skills:
             continue
-
         missing.append(skill)
+
 
     return missing[:10]
 
@@ -368,19 +383,22 @@ def predict():
 
     scorecard = generate_scorecard(resume_text, role)
 
-    decision = (
-        "Likely Shortlisted"
-        if scorecard["overall_score"] >= SCORING_CONFIG["shortlist_threshold"]
-        else "Borderline"
-        if scorecard["overall_score"] >= SCORING_CONFIG["borderline_threshold"]
-        else "Needs Improvement"
-    )
+    if jd_analysis and jd_analysis["jd_similarity"] < 0.2:
+       decision = "Not a Fit for This Role"
+    else:
+        decision = (
+            "Likely Shortlisted"
+            if scorecard["overall_score"] >= SCORING_CONFIG["shortlist_threshold"]
+            else "Borderline"
+            if scorecard["overall_score"] >= SCORING_CONFIG["borderline_threshold"]
+            else "Needs Improvement"
+        )
 
     analysis = {
         "detected_role": role,
         "decision": decision,
         "scorecard": scorecard,
-        "missing_skills": role_missing_skills(resume_text, role, is_pdf),
+        "missing_skills": detect_missing_skills(resume_text, role, is_pdf),
 
 
         "skill_confidence": skill_conf,

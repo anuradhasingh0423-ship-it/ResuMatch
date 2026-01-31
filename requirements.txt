@@ -1,9 +1,9 @@
 flask
 gunicorn
-spacy
+spacy==3.7.5
 scikit-learn
 numpy
 pandas
 PyPDF2
 werkzeug
-en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl
