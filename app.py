@@ -383,8 +383,13 @@ def predict():
 
     scorecard = generate_scorecard(resume_text, role)
 
-    if jd_analysis and jd_analysis["jd_similarity"] < 0.2:
-       decision = "Not a Fit for This Role"
+    if jd_analysis and jd_analysis["jd_similarity"] < 0.15:
+        if scorecard["overall_score"] >= 80:
+            decision = "Likely Shortlisted (JD is generic)"
+        elif scorecard["overall_score"] >= 60:
+            decision = "Borderline (JD mismatch)"
+        else:
+            decision = "Not a Fit for This Role"
     else:
         decision = (
             "Likely Shortlisted"
@@ -394,6 +399,7 @@ def predict():
             else "Needs Improvement"
         )
 
+ 
     analysis = {
         "detected_role": role,
         "decision": decision,
