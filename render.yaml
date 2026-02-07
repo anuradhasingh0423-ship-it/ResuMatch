@@ -1,3 +1,4 @@
+
 services:
   - type: web
     name: resumatch
@@ -6,3 +7,14 @@ services:
     pythonVersion: 3.10.13
     buildCommand: pip install --upgrade pip && pip install -r requirements.txt
     startCommand: gunicorn app:app
+services:
+  - type: web
+    name: resumatch
+    env: python
+    plan: free
+    pythonVersion: 3.10.13
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: gunicorn app:app
+
+
+
