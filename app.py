@@ -5,7 +5,7 @@ from flask import Flask, request, jsonify, render_template, session, redirect, u
 from PyPDF2 import PdfReader
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
-import os
+
 # ---------- NLP ----------
 try:
     nlp = spacy.load("en_core_web_sm")
@@ -23,17 +23,16 @@ app.secret_key = "resumatch_secret_key"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "users.db")
 
-def get_db():
-    return sqlite3.connect(DB_PATH)
+import os
 
-# 2. Add the initialization function
-def init_db_on_start():
-    db = get_db()
-    cur = db.cursor()
-    cur.execute("CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, email TEXT UNIQUE, password TEXT)")
-    cur.execute("CREATE TABLE IF NOT EXISTS history(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, detected_role TEXT, score REAL, analysis TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
-    db.commit()
-    db.close()
+# Get the directory where app.py is located
+basedir = os.path.abspath(os.path.dirname(__file__))
+
+def get_db():
+    # Use an absolute path to the database file
+    db_path = os.path.join(basedir, 'users.db')
+    return sqlite3.connect(db_path)
+
 
 
 # ---------- TF-IDF ----------
@@ -546,15 +545,38 @@ def delete_history(hid):
     db.commit()
     return jsonify({"success":True})
 
+# ... (rest of your code above)
 
+def init_db():
+    with app.app_context():
+        db = get_db()
+        cur = db.cursor()
+        # Create users table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS users(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                email TEXT UNIQUE,
+                password TEXT
+            )
+        """)
+        # Create history table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS history(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                detected_role TEXT,
+                score REAL,
+                analysis TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        db.commit()
+
+
+init_db() 
 
 if __name__ == "__main__":
-    # 1. Initialize DB before starting
-    with app.app_context():
-        init_db_on_start()
-        
-    # 2. Use the dynamic port assigned by Render
-    port = int(os.environ.get("PORT", 5000))
+    # This block only runs locally, not on Render
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
-
-
