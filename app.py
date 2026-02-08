@@ -1,3 +1,4 @@
+import os
 import spacy
 import sqlite3, re, json
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -23,7 +24,7 @@ app.secret_key = "resumatch_secret_key"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "users.db")
 
-import os
+
 
 # Get the directory where app.py is located
 basedir = os.path.abspath(os.path.dirname(__file__))
