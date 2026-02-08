@@ -5,7 +5,7 @@ from flask import Flask, request, jsonify, render_template, session, redirect, u
 from PyPDF2 import PdfReader
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
-
+import os
 # ---------- NLP ----------
 try:
     nlp = spacy.load("en_core_web_sm")
@@ -15,13 +15,26 @@ except:
     nlp = spacy.load("en_core_web_sm")
 
 
-# ---------- App ----------
+
 app = Flask(__name__)
 app.secret_key = "resumatch_secret_key"
 
-# ---------- DB ----------
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "users.db")
+
 def get_db():
-    return sqlite3.connect("users.db")
+    return sqlite3.connect(DB_PATH)
+
+# 2. Add the initialization function
+def init_db_on_start():
+    db = get_db()
+    cur = db.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, email TEXT UNIQUE, password TEXT)")
+    cur.execute("CREATE TABLE IF NOT EXISTS history(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, detected_role TEXT, score REAL, analysis TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
+    db.commit()
+    db.close()
+
 
 # ---------- TF-IDF ----------
 vectorizer = TfidfVectorizer(stop_words="english")
@@ -78,12 +91,10 @@ DEVOPS_SKILL_MAP = {
 }
 
 PYTHON_DEV_SKILL_MAP = {
-    "python": ["core python"],
-    "oop": ["object oriented"],
-    "flask": ["api"],
-    "django": ["rest"],
-    "databases": ["sql", "sqlite", "postgres"],
-    "backend": ["server", "api"]
+    "python": ["core python", "pandas", "numpy"], # Keep it specific
+    "flask": ["flask api", "werkzeug"],
+    "django": ["django rest", "orm"],
+    "backend": ["fastapi", "python backend"] # Make these more specific
 }
 
 AUTOMATION_SKILL_MAP = {
@@ -94,12 +105,23 @@ AUTOMATION_SKILL_MAP = {
     "crm": ["crm", "client management"],
     "marketing": ["digital marketing", "lead generation"]
 }
+
+JAVA_DEV_SKILL_MAP = {
+    "java": ["j2ee", "core java", "jdk", "jre"],
+    "spring": ["spring boot", "spring mvc", "hibernate", "microservices"],
+    "apis": ["restful api", "json", "soap", "endpoints"],
+    "databases": ["sql", "mysql", "postgresql", "oracle", "jdbc"],
+    "testing": ["junit", "mockito", "tdd", "assertion"],
+    "tools": ["maven", "gradle", "git", "intellij"]
+}
+
 ROLE_SKILL_MAP = {
     "Data Science": SKILL_MAP,
     "Web Designing": WEB_SKILL_MAP,
     "HR": HR_SKILL_MAP,
     "DevOps Engineer": DEVOPS_SKILL_MAP,
-    "Python Developer": PYTHON_DEV_SKILL_MAP
+    "Python Developer": PYTHON_DEV_SKILL_MAP,
+    "Java Developer": JAVA_DEV_SKILL_MAP 
 }
 
 ROLE_SKILL_MAP["AI Automation Engineer"] = AUTOMATION_SKILL_MAP
@@ -109,15 +131,26 @@ job_descriptions = {
     "Data Science": """
     Python SQL Pandas NumPy Statistics Probability Machine Learning Deep Learning NLP Computer Vision
     Data Analysis EDA Feature Engineering Scikit-learn TensorFlow Keras PyTorch
-    Model Training Evaluation Cross Validation Deployment Flask API Pipeline Git Kaggle Research
-    """,
-    "HR": "Recruitment Talent Acquisition Payroll Employee Engagement Communication Performance Management",
-    "DevOps Engineer": "Docker Kubernetes AWS CI CD Linux Automation Cloud Infrastructure Monitoring",
-    "Web Designing": "HTML CSS JavaScript UI UX Responsive Design Bootstrap Figma",
-    "Python Developer": "Python OOP Flask Django APIs Databases Backend Development",
-    "AI Automation Engineer": """n8n automation workflows WhatsApp Business API Instagram Facebook automation
-                              CRM client management AI tools Claude OpenAI chatbots digital marketing"""
+    Model Training Evaluation Cross Validation Deployment Flask API Pipeline Git Kaggle Research,
+    """
 
+    "HR": "Recruitment Talent Acquisition Payroll Employee Engagement Communication Performance Management",
+
+    "DevOps Engineer": "Docker Kubernetes AWS CI CD Linux Automation Cloud Infrastructure Monitoring",
+
+    "Web Designing": "HTML CSS JavaScript UI UX Responsive Design Bootstrap Figma",
+
+    "Python Developer": "Python OOP Flask Django APIs Databases Backend Development",
+    
+    "AI Automation Engineer": """
+    n8n automation workflows WhatsApp Business API Instagram Facebook automation
+    CRM client management AI tools Claude OpenAI chatbots digital marketing
+    """,
+                               
+    "Java Developer": """
+    Java J2EE Spring Boot Hibernate RESTful APIs Microservices SQL MySQL 
+    PostgreSQL JUnit Mockito Maven Gradle Git Agile Cloud Computing
+    """
 }
 
 
@@ -240,19 +273,22 @@ def skill_confidence(resume):
 
 def explain_decision(scorecard):
     reasons = []
-
+    
+    # Positive Reasons
     if scorecard["skill_match_percent"] >= 75:
         reasons.append("Strong alignment with required technical skills")
-
     if scorecard["experience_score"] >= 7:
         reasons.append("Relevant hands-on project and internship experience")
-
-    if scorecard["similarity_score"] >= 0.4:
-        reasons.append("Resume closely matches the job description")
-
     if scorecard["overall_score"] >= 85:
         reasons.append("High overall ATS score")
 
+    # Negative/Improvement Reasons (New)
+    if not reasons:
+        if scorecard["overall_score"] < 50:
+            reasons.append("Low alignment with the specific technical stack of this role")
+        if scorecard["experience_score"] < 5:
+            reasons.append("Consider adding more industry-specific projects or internships")
+            
     return reasons
 
 # ---------- Core Logic ----------
@@ -384,25 +420,27 @@ def predict():
     scorecard = generate_scorecard(resume_text, role)
 
 
-    if jd_analysis and jd_analysis["jd_similarity"] < 0.15:
-        if scorecard["overall_score"] >= 80:
-            decision = "Likely Shortlisted (JD is generic)"
-        elif scorecard["overall_score"] >= 60:
-            decision = "Borderline (JD mismatch)"
+   # ... inside predict() after scorecard is generated ...
+
+    # Combined decision logic to avoid overwriting
+    if jd_analysis and jd_analysis["jd_similarity"] < 0.2:
+        if jd_analysis["jd_similarity"] < 0.15:
+            if scorecard["overall_score"] >= 80:
+                decision = "Likely Shortlisted (JD is generic)"
+            elif scorecard["overall_score"] >= 60:
+                decision = "Borderline (JD mismatch)"
+            else:
+                decision = "Not a Fit for This Role"
         else:
             decision = "Not a Fit for This Role"
-
-    if jd_analysis and jd_analysis["jd_similarity"] < 0.2:
-       decision = "Not a Fit for This Role"
-
     else:
-        decision = (
-            "Likely Shortlisted"
-            if scorecard["overall_score"] >= SCORING_CONFIG["shortlist_threshold"]
-            else "Borderline"
-            if scorecard["overall_score"] >= SCORING_CONFIG["borderline_threshold"]
-            else "Needs Improvement"
-        )
+        # Standard scoring thresholds
+        if scorecard["overall_score"] >= SCORING_CONFIG["shortlist_threshold"]:
+            decision = "Likely Shortlisted"
+        elif scorecard["overall_score"] >= SCORING_CONFIG["borderline_threshold"]:
+            decision = "Borderline"
+        else:
+            decision = "Needs Improvement"
 
  
     analysis = {
@@ -418,7 +456,7 @@ def predict():
         "jd_analysis": jd_analysis,
 
         "suggestions": ["Great resume!"] if decision == "Likely Shortlisted"
-                       else ["Improve skills", "Add projects"]
+                       else ["Focus on learning role-specific frameworks", "Highlight more relevant projects"]
     }
 
     if "user_id" in session:
@@ -510,8 +548,12 @@ def delete_history(hid):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
-
-
+    # 1. Initialize DB before starting
+    with app.app_context():
+        init_db_on_start()
+        
+    # 2. Use the dynamic port assigned by Render
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
 
 
