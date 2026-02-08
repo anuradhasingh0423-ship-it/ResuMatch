@@ -121,18 +121,19 @@ ROLE_SKILL_MAP = {
     "HR": HR_SKILL_MAP,
     "DevOps Engineer": DEVOPS_SKILL_MAP,
     "Python Developer": PYTHON_DEV_SKILL_MAP,
-    "Java Developer": JAVA_DEV_SKILL_MAP 
+    "Java Developer": JAVA_DEV_SKILL_MAP ,
+    "AI Automation Engineer": AUTOMATION_SKILL_MAP
 }
 
-ROLE_SKILL_MAP["AI Automation Engineer"] = AUTOMATION_SKILL_MAP
+
 
 # ---------- Job Descriptions ----------
 job_descriptions = {
     "Data Science": """
-    Python SQL Pandas NumPy Statistics Probability Machine Learning Deep Learning NLP Computer Vision
-    Data Analysis EDA Feature Engineering Scikit-learn TensorFlow Keras PyTorch
-    Model Training Evaluation Cross Validation Deployment Flask API Pipeline Git Kaggle Research,
-    """
+        Python SQL Pandas NumPy Statistics Probability Machine Learning Deep Learning NLP Computer Vision
+        Data Analysis EDA Feature Engineering Scikit-learn TensorFlow Keras PyTorch
+        Model Training Evaluation Cross Validation Deployment Flask API Pipeline Git Kaggle Research 
+    """,
 
     "HR": "Recruitment Talent Acquisition Payroll Employee Engagement Communication Performance Management",
 
